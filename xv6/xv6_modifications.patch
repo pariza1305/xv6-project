@@ -1,0 +1,1275 @@
+Binary files /Users/parizagoyal/Desktop/xv6-riscv/.DS_Store and /Users/parizagoyal/Desktop/xv6-riscv_modified/.DS_Store differ
+Binary files /Users/parizagoyal/Desktop/xv6-riscv/.git/.DS_Store and /Users/parizagoyal/Desktop/xv6-riscv_modified/.git/.DS_Store differ
+diff -ruN /Users/parizagoyal/Desktop/xv6-riscv/Makefile /Users/parizagoyal/Desktop/xv6-riscv_modified/Makefile
+--- /Users/parizagoyal/Desktop/xv6-riscv/Makefile	2025-07-10 14:45:30
++++ /Users/parizagoyal/Desktop/xv6-riscv_modified/Makefile	2025-09-07 11:21:16
+@@ -2,33 +2,33 @@
+ U=user
+ 
+ OBJS = \
+-  $K/entry.o \
+-  $K/start.o \
+-  $K/console.o \
+-  $K/printf.o \
+-  $K/uart.o \
+-  $K/kalloc.o \
+-  $K/spinlock.o \
+-  $K/string.o \
+-  $K/main.o \
+-  $K/vm.o \
+-  $K/proc.o \
+-  $K/swtch.o \
+-  $K/trampoline.o \
+-  $K/trap.o \
+-  $K/syscall.o \
+-  $K/sysproc.o \
+-  $K/bio.o \
+-  $K/fs.o \
+-  $K/log.o \
+-  $K/sleeplock.o \
+-  $K/file.o \
+-  $K/pipe.o \
+-  $K/exec.o \
+-  $K/sysfile.o \
+-  $K/kernelvec.o \
+-  $K/plic.o \
+-  $K/virtio_disk.o
++	$K/entry.o \
++	$K/start.o \
++	$K/console.o \
++	$K/printf.o \
++	$K/uart.o \
++	$K/kalloc.o \
++	$K/spinlock.o \
++	$K/string.o \
++	$K/main.o \
++	$K/vm.o \
++	$K/proc.o \
++	$K/swtch.o \
++	$K/trampoline.o \
++	$K/trap.o \
++	$K/syscall.o \
++	$K/sysproc.o \
++	$K/bio.o \
++	$K/fs.o \
++	$K/log.o \
++	$K/sleeplock.o \
++	$K/file.o \
++	$K/pipe.o \
++	$K/exec.o \
++	$K/sysfile.o \
++	$K/kernelvec.o \
++	$K/plic.o \
++	$K/virtio_disk.o
+ 
+ # riscv64-unknown-elf- or riscv64-linux-gnu-
+ # perhaps in /opt/riscv/bin
+@@ -59,6 +59,9 @@
+ OBJDUMP = $(TOOLPREFIX)objdump
+ 
+ CFLAGS = -Wall -Werror -O -fno-omit-frame-pointer -ggdb -gdwarf-2
++ifdef SCHEDULER
++CFLAGS += -DSCHEDULER_$(SCHEDULER)
++endif
+ CFLAGS += -MD
+ CFLAGS += -mcmodel=medany
+ # CFLAGS += -ffreestanding -fno-common -nostdlib -mno-relax
+@@ -141,18 +144,18 @@
+ 	$U/_grind\
+ 	$U/_wc\
+ 	$U/_zombie\
+-
++	$U/_readcount\
++	$U/_schedulertest
+ fs.img: mkfs/mkfs README $(UPROGS)
+ 	mkfs/mkfs fs.img README $(UPROGS)
+ 
+ -include kernel/*.d user/*.d
+-
+ clean: 
+ 	rm -f *.tex *.dvi *.idx *.aux *.log *.ind *.ilg \
+ 	*/*.o */*.d */*.asm */*.sym \
+ 	$U/initcode $U/initcode.out $K/kernel fs.img \
+ 	mkfs/mkfs .gdbinit \
+-        $U/usys.S \
++	$U/usys.S \
+ 	$(UPROGS)
+ 
+ # try to generate a unique GDB port
+diff -ruN /Users/parizagoyal/Desktop/xv6-riscv/Makefile.bak /Users/parizagoyal/Desktop/xv6-riscv_modified/Makefile.bak
+--- /Users/parizagoyal/Desktop/xv6-riscv/Makefile.bak	1970-01-01 05:30:00
++++ /Users/parizagoyal/Desktop/xv6-riscv_modified/Makefile.bak	2025-09-07 09:33:35
+@@ -0,0 +1,186 @@
++K=kernel
++U=user
++
++OBJS = \
++  $K/entry.o \
++  $K/start.o \
++  $K/console.o \
++  $K/printf.o \
++  $K/uart.o \
++  $K/kalloc.o \
++  $K/spinlock.o \
++  $K/string.o \
++  $K/main.o \
++  $K/vm.o \
++  $K/proc.o \
++  $K/swtch.o \
++  $K/trampoline.o \
++  $K/trap.o \
++  $K/syscall.o \
++  $K/sysproc.o \
++  $K/bio.o \
++  $K/fs.o \
++  $K/log.o \
++  $K/sleeplock.o \
++  $K/file.o \
++  $K/pipe.o \
++  $K/exec.o \
++  $K/sysfile.o \
++  $K/kernelvec.o \
++  $K/plic.o \
++  $K/virtio_disk.o
++
++# riscv64-unknown-elf- or riscv64-linux-gnu-
++# perhaps in /opt/riscv/bin
++#TOOLPREFIX = 
++
++# Try to infer the correct TOOLPREFIX if not set
++ifndef TOOLPREFIX
++TOOLPREFIX := $(shell if riscv64-unknown-elf-objdump -i 2>&1 | grep 'elf64-big' >/dev/null 2>&1; \
++	then echo 'riscv64-unknown-elf-'; \
++	elif riscv64-elf-objdump -i 2>&1 | grep 'elf64-big' >/dev/null 2>&1; \
++	then echo 'riscv64-elf-'; \
++	elif riscv64-linux-gnu-objdump -i 2>&1 | grep 'elf64-big' >/dev/null 2>&1; \
++	then echo 'riscv64-linux-gnu-'; \
++	elif riscv64-unknown-linux-gnu-objdump -i 2>&1 | grep 'elf64-big' >/dev/null 2>&1; \
++	then echo 'riscv64-unknown-linux-gnu-'; \
++	else echo "***" 1>&2; \
++	echo "*** Error: Couldn't find a riscv64 version of GCC/binutils." 1>&2; \
++	echo "*** To turn off this error, run 'gmake TOOLPREFIX= ...'." 1>&2; \
++	echo "***" 1>&2; exit 1; fi)
++endif
++
++QEMU = qemu-system-riscv64
++
++CC = $(TOOLPREFIX)gcc
++AS = $(TOOLPREFIX)gas
++LD = $(TOOLPREFIX)ld
++OBJCOPY = $(TOOLPREFIX)objcopy
++OBJDUMP = $(TOOLPREFIX)objdump
++
++ifdef SCHEDULER
++CFLAGS += -DSCHEDULER_$(SCHEDULER)
++endif
++
++CFLAGS = -Wall -Werror -O -fno-omit-frame-pointer -ggdb -gdwarf-2
++CFLAGS += -MD
++CFLAGS += -mcmodel=medany
++# CFLAGS += -ffreestanding -fno-common -nostdlib -mno-relax
++CFLAGS += -fno-common -nostdlib
++CFLAGS += -fno-builtin-strncpy -fno-builtin-strncmp -fno-builtin-strlen -fno-builtin-memset
++CFLAGS += -fno-builtin-memmove -fno-builtin-memcmp -fno-builtin-log -fno-builtin-bzero
++CFLAGS += -fno-builtin-strchr -fno-builtin-exit -fno-builtin-malloc -fno-builtin-putc
++CFLAGS += -fno-builtin-free
++CFLAGS += -fno-builtin-memcpy -Wno-main
++CFLAGS += -fno-builtin-printf -fno-builtin-fprintf -fno-builtin-vprintf
++CFLAGS += -I.
++CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
++
++# Disable PIE when possible (for Ubuntu 16.10 toolchain)
++ifneq ($(shell $(CC) -dumpspecs 2>/dev/null | grep -e '[^f]no-pie'),)
++CFLAGS += -fno-pie -no-pie
++endif
++ifneq ($(shell $(CC) -dumpspecs 2>/dev/null | grep -e '[^f]nopie'),)
++CFLAGS += -fno-pie -nopie
++endif
++
++LDFLAGS = -z max-page-size=4096
++
++$K/kernel: $(OBJS) $K/kernel.ld $U/initcode
++	$(LD) $(LDFLAGS) -T $K/kernel.ld -o $K/kernel $(OBJS) 
++	$(OBJDUMP) -S $K/kernel > $K/kernel.asm
++	$(OBJDUMP) -t $K/kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $K/kernel.sym
++
++$U/initcode: $U/initcode.S
++	$(CC) $(CFLAGS) -march=rv64g -nostdinc -I. -Ikernel -c $U/initcode.S -o $U/initcode.o
++	$(LD) $(LDFLAGS) -N -e start -Ttext 0 -o $U/initcode.out $U/initcode.o
++	$(OBJCOPY) -S -O binary $U/initcode.out $U/initcode
++	$(OBJDUMP) -S $U/initcode.o > $U/initcode.asm
++
++tags: $(OBJS) _init
++	etags *.S *.c
++
++ULIB = $U/ulib.o $U/usys.o $U/printf.o $U/umalloc.o
++
++_%: %.o $(ULIB)
++	$(LD) $(LDFLAGS) -T $U/user.ld -o $@ $^
++	$(OBJDUMP) -S $@ > $*.asm
++	$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $*.sym
++
++$U/usys.S : $U/usys.pl
++	perl $U/usys.pl > $U/usys.S
++
++$U/usys.o : $U/usys.S
++	$(CC) $(CFLAGS) -c -o $U/usys.o $U/usys.S
++
++$U/_forktest: $U/forktest.o $(ULIB)
++	# forktest has less library code linked in - needs to be small
++	# in order to be able to max out the proc table.
++	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $U/_forktest $U/forktest.o $U/ulib.o $U/usys.o
++	$(OBJDUMP) -S $U/_forktest > $U/forktest.asm
++
++mkfs/mkfs: mkfs/mkfs.c $K/fs.h $K/param.h
++	gcc -Werror -Wall -I. -o mkfs/mkfs mkfs/mkfs.c
++
++# Prevent deletion of intermediate files, e.g. cat.o, after first build, so
++# that disk image changes after first build are persistent until clean.  More
++# details:
++# http://www.gnu.org/software/make/manual/html_node/Chained-Rules.html
++.PRECIOUS: %.o
++
++UPROGS=\
++	$U/_cat\
++	$U/_echo\
++	$U/_forktest\
++	$U/_grep\
++	$U/_init\
++	$U/_kill\
++	$U/_ln\
++	$U/_ls\
++    $U/_mkdir\
++	$U/_rm\
++	$U/_sh\
++	$U/_stressfs\
++	$U/_usertests\
++	$U/_grind\
++	$U/_wc\
++	$U/_zombie\
++    $U/_readcount\
++    $U/_schedulertest\
++fs.img: mkfs/mkfs README $(UPROGS)
++	mkfs/mkfs fs.img README $(UPROGS)
++
++-include kernel/*.d user/*.d
++clean: 
++	rm -f *.tex *.dvi *.idx *.aux *.log *.ind *.ilg \
++	*/*.o */*.d */*.asm */*.sym \
++	$U/initcode $U/initcode.out $K/kernel fs.img \
++	mkfs/mkfs .gdbinit \
++	$U/usys.S \
++	$(UPROGS)
++
++# try to generate a unique GDB port
++GDBPORT = $(shell expr `id -u` % 5000 + 25000)
++# QEMU's gdb stub command line changed in 0.11
++QEMUGDB = $(shell if $(QEMU) -help | grep -q '^-gdb'; \
++	then echo "-gdb tcp::$(GDBPORT)"; \
++	else echo "-s -p $(GDBPORT)"; fi)
++ifndef CPUS
++CPUS := 3
++endif
++
++QEMUOPTS = -machine virt -bios none -kernel $K/kernel -m 128M -smp $(CPUS) -nographic
++QEMUOPTS += -global virtio-mmio.force-legacy=false
++QEMUOPTS += -drive file=fs.img,if=none,format=raw,id=x0
++QEMUOPTS += -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
++
++qemu: $K/kernel fs.img
++	$(QEMU) $(QEMUOPTS)
++
++.gdbinit: .gdbinit.tmpl-riscv
++	sed "s/:1234/:$(GDBPORT)/" < $^ > $@
++
++qemu-gdb: $K/kernel .gdbinit fs.img
++	@echo "*** Now run 'gdb' in another window." 1>&2
++	$(QEMU) $(QEMUOPTS) -S $(QEMUGDB)
++
+Binary files /Users/parizagoyal/Desktop/xv6-riscv/fs 2.img and /Users/parizagoyal/Desktop/xv6-riscv_modified/fs 2.img differ
+diff -ruN /Users/parizagoyal/Desktop/xv6-riscv/kernel/file.c /Users/parizagoyal/Desktop/xv6-riscv_modified/kernel/file.c
+--- /Users/parizagoyal/Desktop/xv6-riscv/kernel/file.c	2025-07-10 14:45:30
++++ /Users/parizagoyal/Desktop/xv6-riscv_modified/kernel/file.c	2025-09-11 09:29:44
+@@ -12,6 +12,8 @@
+ #include "file.h"
+ #include "stat.h"
+ #include "proc.h"
++// added
++uint64 total_read_bytes = 0;
+ 
+ struct devsw devsw[NDEV];
+ struct {
+@@ -125,6 +127,10 @@
+   } else {
+     panic("fileread");
+   }
++
++  // if(r > 0){
++  //   total_read_bytes += r;
++  // }
+ 
+   return r;
+ }
+diff -ruN /Users/parizagoyal/Desktop/xv6-riscv/kernel/main.c /Users/parizagoyal/Desktop/xv6-riscv_modified/kernel/main.c
+--- /Users/parizagoyal/Desktop/xv6-riscv/kernel/main.c	2025-07-10 14:45:30
++++ /Users/parizagoyal/Desktop/xv6-riscv_modified/kernel/main.c	2025-09-07 11:21:55
+@@ -28,6 +28,13 @@
+     iinit();         // inode table
+     fileinit();      // file table
+     virtio_disk_init(); // emulated hard disk
++    //  #if defined(SCHEDULER_FCFS)
++    //   printf("Scheduler policy: FCFS\n");
++    // #elif defined(SCHEDULER_CFS)
++    //   printf("Scheduler policy: CFS\n");
++    // #else
++    //   printf("Scheduler policy: Round Robin\n");
++    // #endif
+     userinit();      // first user process
+     __sync_synchronize();
+     started = 1;
+@@ -36,6 +43,7 @@
+       ;
+     __sync_synchronize();
+     printf("hart %d starting\n", cpuid());
++    
+     kvminithart();    // turn on paging
+     trapinithart();   // install kernel trap vector
+     plicinithart();   // ask PLIC for device interrupts
+diff -ruN /Users/parizagoyal/Desktop/xv6-riscv/kernel/proc.c /Users/parizagoyal/Desktop/xv6-riscv_modified/kernel/proc.c
+--- /Users/parizagoyal/Desktop/xv6-riscv/kernel/proc.c	2025-07-10 14:45:30
++++ /Users/parizagoyal/Desktop/xv6-riscv_modified/kernel/proc.c	2025-09-09 01:24:01
+@@ -1,3 +1,4 @@
++// kernel/proc.c
+ #include "types.h"
+ #include "param.h"
+ #include "memlayout.h"
+@@ -5,10 +6,35 @@
+ #include "spinlock.h"
+ #include "proc.h"
+ #include "defs.h"
++#ifdef SCHEDULER_CFS
++static inline int nice_to_weight(int nice) {
++  // weight ≈ 1024 / (1.25 ^ nice)
++  // compute with integer pow; precompute table for stability/speed:
++  // nice: -20..19
++  static const int wtab[40] = {
++    88761, 71054, 56856, 45483, 36380, 29154, 23301, 18669, 14949, 11916,
++     9537,  7620,  6090,  4872,  3898,  3118,  2494,  1995,  1596,  1277,
++     1024,   819,   655,   524,   419,   335,   268,   214,   171,   137,
++      110,    88,    70,    56,    45,    36,    29,    23,    18,    15
++  };
++  if (nice < -20) nice = -20;
++  if (nice >  19) nice = 19;
++  return wtab[nice + 20];
++}
++#endif
+ 
++
++#ifdef SCHEDULER_CFS
++static const int CFS_TARGET_LATENCY = 48;  // ticks
++static const int CFS_MIN_SLICE = 3;        // ticks
++#endif
++
+ struct cpu cpus[NCPU];
+ 
+ struct proc proc[NPROC];
++// ---- START of modification ----
++struct spinlock read_count_lock;
++// ---- END of modification ----
+ 
+ struct proc *initproc;
+ 
+@@ -26,6 +52,9 @@
+ // must be acquired before any p->lock.
+ struct spinlock wait_lock;
+ 
++// Must be declared somewhere for allocproc
++extern uint ticks;
++
+ // Allocate a page for each process's kernel stack.
+ // Map it high in memory, followed by an invalid
+ // guard page.
+@@ -33,7 +62,6 @@
+ proc_mapstacks(pagetable_t kpgtbl)
+ {
+   struct proc *p;
+-  
+   for(p = proc; p < &proc[NPROC]; p++) {
+     char *pa = kalloc();
+     if(pa == 0)
+@@ -48,13 +76,16 @@
+ procinit(void)
+ {
+   struct proc *p;
+-  
++
+   initlock(&pid_lock, "nextpid");
+   initlock(&wait_lock, "wait_lock");
++    // ---- START of modification ----
++    initlock(&read_count_lock, "readcount");
++    // ---- END of modification ----
+   for(p = proc; p < &proc[NPROC]; p++) {
+-      initlock(&p->lock, "proc");
+-      p->state = UNUSED;
+-      p->kstack = KSTACK((int) (p - proc));
++    initlock(&p->lock, "proc");
++    p->state = UNUSED;
++    p->kstack = KSTACK((int) (p - proc));
+   }
+ }
+ 
+@@ -93,7 +124,7 @@
+ allocpid()
+ {
+   int pid;
+-  
++
+   acquire(&pid_lock);
+   pid = nextpid;
+   nextpid = nextpid + 1;
+@@ -106,6 +137,10 @@
+ // If found, initialize state required to run in the kernel,
+ // and return with p->lock held.
+ // If there are no free procs, or a memory allocation fails, return 0.
++// Look in the process table for an UNUSED proc.
++// If found, initialize state required to run in the kernel,
++// and return with p->lock held.
++// If there are no free procs, or a memory allocation fails, return 0.
+ static struct proc*
+ allocproc(void)
+ {
+@@ -146,6 +181,29 @@
+   p->context.ra = (uint64)forkret;
+   p->context.sp = p->kstack + PGSIZE;
+ 
++  // --- START SCHEDULER FIELD INITIALIZATION ---
++
++  // Initialize generic stats fields (used by sys_wait_stat)
++  // These are compiled for ALL scheduler types.
++  p->rtime = 0;
++  p->wtime = 0;
++
++#ifdef SCHEDULER_FCFS
++  // FCFS-specific field initialization
++  p->ctime = ticks;
++#endif
++
++#ifdef SCHEDULER_CFS
++  // CFS-specific field initializations
++  p->nice = 0;
++  p->weight = nice_to_weight(p->nice);
++  p->vruntime = 0;
++  p->slice_ticks = 0;
++  p->ran_in_slice = 0;
++#endif
++  
++  // --- END SCHEDULER FIELD INITIALIZATION ---
++
+   return p;
+ }
+ 
+@@ -236,7 +294,7 @@
+ 
+   p = allocproc();
+   initproc = p;
+-  
++
+   // allocate one user page and copy initcode's instructions
+   // and data into it.
+   uvmfirst(p->pagetable, initcode, sizeof(initcode));
+@@ -308,7 +366,7 @@
+       np->ofile[i] = filedup(p->ofile[i]);
+   np->cwd = idup(p->cwd);
+ 
+-  safestrcpy(np->name, p->name, sizeof(p->name));
++  safestrcpy(np->name, p->name, sizeof(np->name));
+ 
+   pid = np->pid;
+ 
+@@ -372,7 +430,7 @@
+ 
+   // Parent might be sleeping in wait().
+   wakeup(p->parent);
+-  
++
+   acquire(&p->lock);
+ 
+   p->xstate = status;
+@@ -428,7 +486,7 @@
+       release(&wait_lock);
+       return -1;
+     }
+-    
++
+     // Wait for a child to exit.
+     sleep(p, &wait_lock);  //DOC: wait-sleep
+   }
+@@ -441,45 +499,205 @@
+ //  - swtch to start running that process.
+ //  - eventually that process transfers control
+ //    via swtch back to the scheduler.
++
++// Paste this new function into kernel/proc.c
++// This function belongs in kernel/proc.c
++
++
++uint64
++sys_wait_stat(void)
++{
++  uint64 wtime_addr, rtime_addr;
++  struct proc *pp;
++  int havekids, pid;
++  struct proc *p = myproc();
++
++  // Get the user-space pointers from the arguments
++  // This is the corrected way to call these void functions
++  argaddr(0, &wtime_addr);
++  argaddr(1, &rtime_addr);
++
++  acquire(&wait_lock);
++
++  for(;;){
++    // Scan through table looking for exited children.
++    havekids = 0;
++    for(pp = proc; pp < &proc[NPROC]; pp++){
++      if(pp->parent == p){
++        acquire(&pp->lock);
++        havekids = 1;
++        if(pp->state == ZOMBIE){
++          // Found one.
++          pid = pp->pid;
++          
++          // Copy out the process's wtime and rtime to the user pointers
++          if(copyout(p->pagetable, wtime_addr, (char *)&pp->wtime, sizeof(pp->wtime)) < 0 ||
++             copyout(p->pagetable, rtime_addr, (char *)&pp->rtime, sizeof(pp->rtime)) < 0) {
++            release(&pp->lock);
++            release(&wait_lock);
++            return -1;
++          }
++          
++          freeproc(pp);
++          release(&pp->lock);
++          release(&wait_lock);
++          return pid;
++        }
++        release(&pp->lock);
++      }
++    }
++
++    // No point waiting if we don't have any children.
++    if(!havekids || killed(p)){
++      release(&wait_lock);
++      return -1;
++    }
++    
++    // Wait for a child to exit.
++    sleep(p, &wait_lock);
++  }
++}
++uint64
++sys_setnice(void)
++{
++  // This function only works if the kernel is compiled for CFS.
++  // Otherwise, it does nothing and returns success.
++#ifdef SCHEDULER_CFS
++  int n;
++
++  // This is the fix. Call argint directly.
++  // It populates 'n' but does not return a value.
++  argint(0, &n);
++
++  // The nice_to_weight function is also inside an #ifdef,
++  // so this code is safe.
++  struct proc *p = myproc();
++  acquire(&p->lock);
++  p->nice = n;
++  p->weight = nice_to_weight(p->nice);
++  release(&p->lock);
++  
++#endif
++  // If not SCHEDULER_CFS, do nothing.
++  return 0;
++}
++// This is the complete scheduler function for kernel/proc.c
++// Paste this into kernel/proc.c, REPLACING your entire old scheduler() function
++// code from llm starts 
+ void
+ scheduler(void)
+ {
+   struct proc *p;
+   struct cpu *c = mycpu();
+-
+   c->proc = 0;
++
+   for(;;){
+-    // The most recent process to run may have had interrupts
+-    // turned off; enable them to avoid a deadlock if all
+-    // processes are waiting.
+-    intr_on();
++    intr_on(); // Enable interrupts on this core.
+ 
+-    int found = 0;
++#if defined(SCHEDULER_FCFS)
++    // --- FCFS SCHEDULER (safer locking) ---
++    struct proc *earliest_proc = 0;
++
++    // Scan for the earliest runnable process. Do not hold any locks.
+     for(p = proc; p < &proc[NPROC]; p++) {
+       acquire(&p->lock);
+       if(p->state == RUNNABLE) {
+-        // Switch to chosen process.  It is the process's job
+-        // to release its lock and then reacquire it
+-        // before jumping back to us.
++        if(earliest_proc == 0 || p->ctime < earliest_proc->ctime) {
++          earliest_proc = p;
++        }
++      }
++      release(&p->lock);
++    }
++
++    // Now that we have a candidate (if any), acquire its lock and run it.
++    if(earliest_proc){
++      acquire(&earliest_proc->lock);
++      if(earliest_proc->state == RUNNABLE) { // Re-check state, it might have changed
++        earliest_proc->state = RUNNING;
++        c->proc = earliest_proc;
++        swtch(&c->context, &earliest_proc->context);
++        c->proc = 0;
++      }
++      release(&earliest_proc->lock);
++    }
++
++#elif defined(SCHEDULER_CFS)
++    // --- CFS SCHEDULER (safer locking) ---
++    struct proc *best_proc = 0;
++    int num_runnable = 0;
++
++    // 1. FIRST LOOP (SELECTION): Scan all processes without holding locks
++    // to count runnable processes and find the best candidate (lowest vruntime).
++    for(p = proc; p < &proc[NPROC]; p++) {
++      acquire(&p->lock);
++      if(p->state == RUNNABLE) {
++        num_runnable++;
++        if(best_proc == 0 || p->vruntime < best_proc->vruntime) {
++          best_proc = p;
++        }
++      }
++      release(&p->lock);
++    }
++
++    // If we found a runnable process, proceed.
++    if(best_proc){
++      // 2. LOGGING: Now that selection is done (and NO locks are held),
++      // run the logging loop as required by the spec.
++      printf("[Scheduler Tick]\n");
++      for(p = proc; p < &proc[NPROC]; p++) {
++        acquire(&p->lock);
++        if(p->state == RUNNABLE) {
++          printf("PID: %d | vRuntime: %lu\n", p->pid, p->vruntime);
++        }
++        release(&p->lock);
++      }
++      
++      // Calculate time slice (using the constants we fixed before)
++      int slice = CFS_TARGET_LATENCY / (num_runnable ? num_runnable : 1);
++      if(slice < CFS_MIN_SLICE) slice = CFS_MIN_SLICE;
++      
++      printf("--> Scheduling PID %d (lowest vRuntime) for %d ticks\n\n", best_proc->pid, slice);
++
++      // 3. EXECUTION: NOW, and only now, acquire the one lock we need.
++      acquire(&best_proc->lock);
++      if(best_proc->state == RUNNABLE) { // Re-check state
++        // Set slice data and run the process
++        best_proc->slice_ticks = slice;
++        best_proc->ran_in_slice = 0;
++        best_proc->state = RUNNING;
++        c->proc = best_proc;
++        
++        swtch(&c->context, &best_proc->context); // Run process
++
++        // Process has yielded (in trap.c) or blocked. It's back.
++        c->proc = 0;
++        
++        // Update its vruntime based on ticks it actually consumed (ran_in_slice)
++        uint64 ran = best_proc->ran_in_slice;
++        if (ran > 0) {
++          uint64 add = (ran * 1024) / (best_proc->weight ? best_proc->weight : 1);
++          best_proc->vruntime += add;
++        }
++      }
++      release(&best_proc->lock);
++    }
++
++#else
++    // --- Default Round Robin scheduler ---
++    for(p = proc; p < &proc[NPROC]; p++) {
++      acquire(&p->lock);
++      if(p->state == RUNNABLE) {
+         p->state = RUNNING;
+         c->proc = p;
+         swtch(&c->context, &p->context);
+-
+-        // Process is done running for now.
+-        // It should have changed its p->state before coming back.
+         c->proc = 0;
+-        found = 1;
+       }
+       release(&p->lock);
+     }
+-    if(found == 0) {
+-      // nothing to run; stop running on this core until an interrupt.
+-      intr_on();
+-      asm volatile("wfi");
+-    }
++#endif
+   }
+ }
+-
++// code from llm ends
+ // Switch to scheduler.  Must hold only p->lock
+ // and have changed proc->state. Saves and restores
+ // intena because intena is a property of this
+@@ -548,7 +766,7 @@
+ sleep(void *chan, struct spinlock *lk)
+ {
+   struct proc *p = myproc();
+-  
++
+   // Must acquire p->lock in order to
+   // change p->state and then call sched.
+   // Once we hold p->lock, we can be
+@@ -627,7 +845,7 @@
+ killed(struct proc *p)
+ {
+   int k;
+-  
++
+   acquire(&p->lock);
+   k = p->killed;
+   release(&p->lock);
+@@ -666,7 +884,6 @@
+ 
+ // Print a process listing to console.  For debugging.
+ // Runs when user types ^P on console.
+-// No lock to avoid wedging a stuck machine further.
+ void
+ procdump(void)
+ {
+@@ -689,7 +906,10 @@
+       state = states[p->state];
+     else
+       state = "???";
+-    printf("%d %s %s", p->pid, state, p->name);
+-    printf("\n");
++#ifdef SCHEDULER_CFS
++    printf("%d %s %s vruntime %lu nice %d\n", p->pid, state, p->name, p->vruntime, p->nice);
++#else
++    printf("%d %s %s\n", p->pid, state, p->name);
++#endif
+   }
+ }
+diff -ruN /Users/parizagoyal/Desktop/xv6-riscv/kernel/proc.h /Users/parizagoyal/Desktop/xv6-riscv_modified/kernel/proc.h
+--- /Users/parizagoyal/Desktop/xv6-riscv/kernel/proc.h	2025-07-10 14:45:30
++++ /Users/parizagoyal/Desktop/xv6-riscv_modified/kernel/proc.h	2025-09-09 01:19:04
+@@ -91,7 +91,7 @@
+   int killed;                  // If non-zero, have been killed
+   int xstate;                  // Exit status to be returned to parent's wait
+   int pid;                     // Process ID
+-
++ 
+   // wait_lock must be held when using this:
+   struct proc *parent;         // Parent process
+ 
+@@ -104,4 +104,26 @@
+   struct file *ofile[NOFILE];  // Open files
+   struct inode *cwd;           // Current directory
+   char name[16];               // Process name (debugging)
+-};
++
++  // --- START SCHEDULER FIELDS ---
++  
++  // Generic stats fields (for sys_wait_stat) - ALWAYS include these
++  int rtime;                   // Total run time
++  int wtime;                   // Total time spent RUNNABLE (waiting)
++
++#ifdef SCHEDULER_FCFS
++  // FCFS-specific field
++  uint64 ctime;                // Creation time
++#endif
++
++#ifdef SCHEDULER_CFS
++  // CFS-specific fields
++  int nice;                    // nice in [-20, 19], default 0
++  int weight;                  // computed from nice
++  uint64 vruntime;             // virtual runtime
++  int slice_ticks;             // time slice granted for this run
++  int ran_in_slice;            // ticks consumed in current slice
++#endif
++
++  // --- END SCHEDULER FIELDS ---
++};
+\ No newline at end of file
+diff -ruN /Users/parizagoyal/Desktop/xv6-riscv/kernel/syscall.c /Users/parizagoyal/Desktop/xv6-riscv_modified/kernel/syscall.c
+--- /Users/parizagoyal/Desktop/xv6-riscv/kernel/syscall.c	2025-07-10 14:45:30
++++ /Users/parizagoyal/Desktop/xv6-riscv_modified/kernel/syscall.c	2025-09-07 10:29:22
+@@ -101,6 +101,11 @@
+ extern uint64 sys_link(void);
+ extern uint64 sys_mkdir(void);
+ extern uint64 sys_close(void);
++extern uint64 sys_wait_stat(void); 
++extern uint64 sys_getreadcount(void);
++#ifdef SCHEDULER_CFS
++extern uint64 sys_setnice(void);
++#endif
+ 
+ // An array mapping syscall numbers from syscall.h
+ // to the function that handles the system call.
+@@ -126,6 +131,12 @@
+ [SYS_link]    sys_link,
+ [SYS_mkdir]   sys_mkdir,
+ [SYS_close]   sys_close,
++[SYS_wait_stat]  sys_wait_stat,
++[SYS_getreadcount] sys_getreadcount,
++#ifdef SCHEDULER_CFS
++  [SYS_setnice] sys_setnice,
++#endif
++
+ };
+ 
+ void
+diff -ruN /Users/parizagoyal/Desktop/xv6-riscv/kernel/syscall.h /Users/parizagoyal/Desktop/xv6-riscv_modified/kernel/syscall.h
+--- /Users/parizagoyal/Desktop/xv6-riscv/kernel/syscall.h	2025-07-10 14:45:30
++++ /Users/parizagoyal/Desktop/xv6-riscv_modified/kernel/syscall.h	2025-09-07 10:24:38
+@@ -20,3 +20,7 @@
+ #define SYS_link   19
+ #define SYS_mkdir  20
+ #define SYS_close  21
++#define SYS_getreadcount  22
++#define SYS_setnice 23  // next free
++#define SYS_wait_stat    24 
++
+diff -ruN /Users/parizagoyal/Desktop/xv6-riscv/kernel/sysfile.c /Users/parizagoyal/Desktop/xv6-riscv_modified/kernel/sysfile.c
+--- /Users/parizagoyal/Desktop/xv6-riscv/kernel/sysfile.c	2025-07-10 14:45:30
++++ /Users/parizagoyal/Desktop/xv6-riscv_modified/kernel/sysfile.c	2025-09-05 20:44:36
+@@ -18,6 +18,9 @@
+ 
+ // Fetch the nth word-sized system call argument as a file descriptor
+ // and return both the descriptor and the corresponding struct file.
++// Add these forward declarations at the top
++extern uint total_read_bytes;
++extern struct spinlock read_count_lock;
+ static int
+ argfd(int n, int *pfd, struct file **pf)
+ {
+@@ -76,7 +79,16 @@
+   argint(2, &n);
+   if(argfd(0, 0, &f) < 0)
+     return -1;
+-  return fileread(f, p, n);
++
++  int bytes_read = fileread(f, p, n);
++
++  if (bytes_read > 0) {
++    acquire(&read_count_lock);
++    total_read_bytes += bytes_read;
++    release(&read_count_lock);
++  }
++
++  return bytes_read;
+ }
+ 
+ uint64
+diff -ruN /Users/parizagoyal/Desktop/xv6-riscv/kernel/sysproc.c /Users/parizagoyal/Desktop/xv6-riscv_modified/kernel/sysproc.c
+--- /Users/parizagoyal/Desktop/xv6-riscv/kernel/sysproc.c	2025-07-10 14:45:30
++++ /Users/parizagoyal/Desktop/xv6-riscv_modified/kernel/sysproc.c	2025-09-07 11:53:30
+@@ -5,7 +5,12 @@
+ #include "memlayout.h"
+ #include "spinlock.h"
+ #include "proc.h"
++extern uint ticks;
++extern uint64 total_read_bytes;
++extern struct spinlock read_count_lock;
+ 
++
++
+ uint64
+ sys_exit(void)
+ {
+@@ -90,4 +95,15 @@
+   xticks = ticks;
+   release(&tickslock);
+   return xticks;
++}
++
++uint64
++sys_getreadcount(void)
++{
++    uint64 current_count;
++    acquire(&read_count_lock);
++    current_count = total_read_bytes;
++    release(&read_count_lock);
++    return current_count;
++
+ }
+diff -ruN /Users/parizagoyal/Desktop/xv6-riscv/kernel/trap.c /Users/parizagoyal/Desktop/xv6-riscv_modified/kernel/trap.c
+--- /Users/parizagoyal/Desktop/xv6-riscv/kernel/trap.c	2025-07-10 14:45:30
++++ /Users/parizagoyal/Desktop/xv6-riscv_modified/kernel/trap.c	2025-09-07 11:38:06
+@@ -8,7 +8,11 @@
+ 
+ struct spinlock tickslock;
+ uint ticks;
++extern struct proc proc[]; // <-- ADD THIS LINE
+ 
++struct trapframe;
++
++
+ extern char trampoline[], uservec[], userret[];
+ 
+ // in kernelvec.S, calls kerneltrap().
+@@ -33,6 +37,8 @@
+ // handle an interrupt, exception, or system call from user space.
+ // called from trampoline.S
+ //
++// Paste this into kernel/trap.c, REPLACING your old usertrap()
++// Paste this into kernel/trap.c, REPLACING your old usertrap()
+ void
+ usertrap(void)
+ {
+@@ -41,29 +47,15 @@
+   if((r_sstatus() & SSTATUS_SPP) != 0)
+     panic("usertrap: not from user mode");
+ 
+-  // send interrupts and exceptions to kerneltrap(),
+-  // since we're now in the kernel.
+   w_stvec((uint64)kernelvec);
+-
+   struct proc *p = myproc();
+-  
+-  // save user program counter.
+   p->trapframe->epc = r_sepc();
+-  
+-  if(r_scause() == 8){
+-    // system call
+ 
++  if(r_scause() == 8){
+     if(killed(p))
+       exit(-1);
+-
+-    // sepc points to the ecall instruction,
+-    // but we want to return to the next instruction.
+     p->trapframe->epc += 4;
+-
+-    // an interrupt will change sepc, scause, and sstatus,
+-    // so enable only now that we're done with those registers.
+     intr_on();
+-
+     syscall();
+   } else if((which_dev = devintr()) != 0){
+     // ok
+@@ -76,10 +68,41 @@
+   if(killed(p))
+     exit(-1);
+ 
+-  // give up the CPU if this is a timer interrupt.
+-  if(which_dev == 2)
+-    yield();
++  // This is the combined timer interrupt logic
++  if(which_dev == 2){
++    
++    // STEP 1: Always update counters for the schedulertest report
++    struct proc *proc_iter;
++    for(proc_iter = proc; proc_iter < &proc[NPROC]; proc_iter++) {
++      acquire(&proc_iter->lock);
++      if (proc_iter->state == RUNNING) {
++        proc_iter->rtime++;
++      } else if (proc_iter->state == RUNNABLE) {
++        proc_iter->wtime++;
++      }
++      release(&proc_iter->lock);
++    }
+ 
++    // STEP 2: Scheduler-specific preemption logic
++    #ifdef SCHEDULER_FCFS
++      // FCFS is non-preemptive: DO NOTHING.
++    
++    #elif defined(SCHEDULER_CFS)
++      // CFS Logic: Count ticks within the slice.
++      // The scheduler() function will update vruntime later.
++      if(p && p->state == RUNNING) {
++        p->ran_in_slice++;
++        if (p->ran_in_slice >= p->slice_ticks) {
++          yield(); // Time slice is over. Give up CPU.
++        }
++      }
++
++    #else
++      // Default (Round Robin): always yield on every tick.
++      yield();
++    #endif
++  }
++
+   usertrapret();
+ }
+ 
+@@ -131,6 +154,8 @@
+ 
+ // interrupts and exceptions from kernel code go here via kernelvec,
+ // on whatever the current kernel stack is.
++// in kernel/trap.c
++// Paste this into kernel/trap.c, REPLACING your old kerneltrap()
+ void 
+ kerneltrap()
+ {
+@@ -145,21 +170,51 @@
+     panic("kerneltrap: interrupts enabled");
+ 
+   if((which_dev = devintr()) == 0){
+-    // interrupt or trap from an unknown source
+     printf("scause=0x%lx sepc=0x%lx stval=0x%lx\n", scause, r_sepc(), r_stval());
+     panic("kerneltrap");
+   }
+ 
+-  // give up the CPU if this is a timer interrupt.
+-  if(which_dev == 2 && myproc() != 0)
+-    yield();
++  // This is the combined timer interrupt logic
++  if(which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING) {
++    
++    // STEP 1: Always update counters for the schedulertest report
++    struct proc *proc_iter;
++    for(proc_iter = proc; proc_iter < &proc[NPROC]; proc_iter++) {
++      acquire(&proc_iter->lock);
++      if (proc_iter->state == RUNNING) {
++        proc_iter->rtime++;
++      } else if (proc_iter->state == RUNNABLE) {
++        proc_iter->wtime++;
++      }
++      release(&proc_iter->lock);
++    }
+ 
+-  // the yield() may have caused some traps to occur,
+-  // so restore trap registers for use by kernelvec.S's sepc instruction.
++    // STEP 2: Scheduler-specific preemption logic
++    #ifdef SCHEDULER_FCFS
++      // FCFS is non-preemptive: DO NOTHING.
++    
++    #elif defined(SCHEDULER_CFS)
++      // CFS Logic: Count ticks within the slice.
++      struct proc *p = myproc();
++      if(p && p->state == RUNNING) {
++        p->ran_in_slice++;
++        if (p->ran_in_slice >= p->slice_ticks) {
++          yield(); // Time slice is over. Give up CPU.
++        }
++      }
++
++    #else
++      // Default (Round Robin): always yield on every tick.
++      yield();
++    #endif
++  }
++
+   w_sepc(sepc);
+   w_sstatus(sstatus);
+ }
+ 
++
++
+ void
+ clockintr()
+ {
+@@ -170,11 +225,22 @@
+     release(&tickslock);
+   }
+ 
++  // account running time for current process
++  struct proc *p = myproc();
++  if(p && p->state == RUNNING) {
++   // p->rtime++;   // total time process has run
++
++    #ifdef SCHEDULER_CFS
++      p->ran_in_slice++;   // ticks in current slice (for CFS)
++    #endif
++  }
++
+   // ask for the next timer interrupt. this also clears
+   // the interrupt request. 1000000 is about a tenth
+   // of a second.
+   w_stimecmp(r_time() + 1000000);
+ }
++
+ 
+ // check if it's an external interrupt or software interrupt,
+ // and handle it.
+Binary files /Users/parizagoyal/Desktop/xv6-riscv/user/_mkdir 2 and /Users/parizagoyal/Desktop/xv6-riscv_modified/user/_mkdir 2 differ
+Binary files /Users/parizagoyal/Desktop/xv6-riscv/user/_readcount 2 and /Users/parizagoyal/Desktop/xv6-riscv_modified/user/_readcount 2 differ
+Binary files /Users/parizagoyal/Desktop/xv6-riscv/user/_rm 2 and /Users/parizagoyal/Desktop/xv6-riscv_modified/user/_rm 2 differ
+Binary files /Users/parizagoyal/Desktop/xv6-riscv/user/_stressfs 2 and /Users/parizagoyal/Desktop/xv6-riscv_modified/user/_stressfs 2 differ
+diff -ruN /Users/parizagoyal/Desktop/xv6-riscv/user/readcount.c /Users/parizagoyal/Desktop/xv6-riscv_modified/user/readcount.c
+--- /Users/parizagoyal/Desktop/xv6-riscv/user/readcount.c	1970-01-01 05:30:00
++++ /Users/parizagoyal/Desktop/xv6-riscv_modified/user/readcount.c	2025-09-03 18:36:32
+@@ -0,0 +1,33 @@
++#include "kernel/types.h"
++#include "kernel/stat.h"
++#include "user/user.h"
++#include "kernel/fs.h"
++
++int
++main(int argc, char *argv[])
++{
++  int fd;
++  char buf[100];
++  int before, after;
++
++  // call syscall first time
++  before = getreadcount();
++  printf("Initial readcount: %d\n", before);
++
++  // open a file
++  fd = open("README", 0);   // you can replace "README" with any file that exists
++  if(fd < 0){
++    printf("readcount: cannot open file\n");
++    exit(1);
++  }
++
++  // read 100 bytes
++  read(fd, buf, sizeof(buf));
++  close(fd);
++
++  // call syscall again
++  after = getreadcount();
++  printf("Readcount after reading 100 bytes: %d\n", after);
++
++  exit(0);
++}
+diff -ruN /Users/parizagoyal/Desktop/xv6-riscv/user/schedulertest.c /Users/parizagoyal/Desktop/xv6-riscv_modified/user/schedulertest.c
+--- /Users/parizagoyal/Desktop/xv6-riscv/user/schedulertest.c	1970-01-01 05:30:00
++++ /Users/parizagoyal/Desktop/xv6-riscv_modified/user/schedulertest.c	2025-09-07 11:23:07
+@@ -0,0 +1,87 @@
++// // user/schedulertest.c
++
++// #include "kernel/types.h"
++// #include "kernel/stat.h"
++// #include "user/user.h"
++
++// // A simple CPU-bound task
++// void cpu_task() {
++//     for (volatile int i = 0; i < 10000000; i++) { }
++// }
++
++// int main() {
++//     printf("Starting scheduler test...\n");
++
++//     for (int i = 0; i < 5; i++) {
++//         int pid = fork();
++//         if (pid == 0) {
++//             // Optional: You could call setnice() here to test priorities
++//             cpu_task();
++//             exit(0);
++//         }
++//     }
++    
++//     // In a real submission, you would use wait_stat here.
++//     // For now, you can just wait for all children to finish.
++//     for (int i = 0; i < 5; i++) {
++//         wait(0);
++//     }
++
++//     printf("Scheduler test finished.\n");
++//     exit(0);
++// }
++
++#include "kernel/types.h"
++#include "kernel/stat.h"
++#include "user/user.h"
++
++// A simple CPU-bound task to make the processes run for a while
++void cpu_intensive_task()
++{
++  // Use a volatile variable to prevent the compiler from optimizing the loop away
++  for (volatile int i = 0; i < 1000000000; i++) {}
++}
++
++int
++main(int argc, char *argv[])
++{
++  int num_children = 5;
++  int total_wtime = 0;
++  int total_rtime = 0;
++
++  printf("Starting scheduler test with %d children...\n", num_children);
++
++  for (int i = 0; i < num_children; i++) {
++    int pid = fork();
++    if (pid < 0) {
++      printf("fork failed\n");
++      exit(1);
++    }
++    if (pid == 0) { // Child process
++      printf("Child %d starting CPU task.\n", getpid());
++      cpu_intensive_task();
++      exit(0);
++    }
++  }
++
++  // Parent process waits for all children and collects stats
++  for (int i = 0; i < num_children; i++) {
++    int wtime, rtime;
++    // This uses the wait_stat syscall you implemented
++    int child_pid = wait_stat(&wtime, &rtime);
++    if (child_pid != -1) {
++      printf("Child PID %d: Wait Time = %d, Run Time = %d\n", child_pid, wtime, rtime);
++      total_wtime += wtime;
++      total_rtime += rtime;
++    }
++  }
++
++  printf("\n--- Final Results ---\n");
++  printf("Average Wait Time: %d ticks\n", total_wtime / num_children);
++  printf("Average Run Time: %d ticks\n", total_rtime / num_children);
++
++  exit(0);
++}
++
++
++
+diff -ruN /Users/parizagoyal/Desktop/xv6-riscv/user/user.h /Users/parizagoyal/Desktop/xv6-riscv_modified/user/user.h
+--- /Users/parizagoyal/Desktop/xv6-riscv/user/user.h	2025-07-10 14:45:30
++++ /Users/parizagoyal/Desktop/xv6-riscv_modified/user/user.h	2025-09-07 11:56:20
+@@ -1,5 +1,8 @@
++
+ struct stat;
++int getreadcount(void);
+ 
++
+ // system calls
+ int fork(void);
+ int exit(int) __attribute__((noreturn));
+@@ -22,6 +25,8 @@
+ char* sbrk(int);
+ int sleep(int);
+ int uptime(void);
++int getreadcount(void);
++int wait_stat(int*, int*); // <-- ADD THIS LINE
+ 
+ // ulib.c
+ int stat(const char*, struct stat*);
+@@ -41,3 +46,7 @@
+ // umalloc.c
+ void* malloc(uint);
+ void free(void*);
++
++#ifdef SCHEDULER_CFS
++int setnice(int);
++#endif
+diff -ruN /Users/parizagoyal/Desktop/xv6-riscv/user/usys.pl /Users/parizagoyal/Desktop/xv6-riscv_modified/user/usys.pl
+--- /Users/parizagoyal/Desktop/xv6-riscv/user/usys.pl	2025-07-10 14:45:30
++++ /Users/parizagoyal/Desktop/xv6-riscv_modified/user/usys.pl	2025-09-07 10:22:23
+@@ -36,3 +36,6 @@
+ entry("sbrk");
+ entry("sleep");
+ entry("uptime");
++entry("getreadcount");
++entry("setnice");
++entry("wait_stat"); 
+\ No newline at end of file
